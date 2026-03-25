@@ -1388,7 +1388,7 @@ do
     })
     TabPlayer:Slider({ Title = "Velocidade do Fly", Step = 5, Value = { Min = 10, Max = 500, Default = 50 }, Callback = function(v) FLY_SPEED = v end })
 
-    TabPlayer:Section({ Title = "Defesas / Proteções (v6.0)" })
+    TabPlayer:Section({ Title = "Defesas / Proteção" })
 
     TabPlayer:Toggle({
         Title = "Anti Knockback 🧱",
@@ -1420,7 +1420,7 @@ do
         end,
     })
 
-    TabPlayer:Section({ Title = "Mundo (v6.0)" })
+    TabPlayer:Section({ Title = "Gravidade zero 🌙" })
 
     TabPlayer:Toggle({
         Title = "Simular Gravidade Lunar 🌙",
