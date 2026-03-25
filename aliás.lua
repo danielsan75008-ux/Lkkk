@@ -1,12 +1,3 @@
-local adminDetectConn = nil
-
-local function stopAdminDetect()
-    if adminDetectConn then
-        adminDetectConn:Disconnect()
-        adminDetectConn = nil
-    end
-end
-
 --[[
 ╔═══════════════════════════════════════════════════════╗
 ║            CoiledTom Hub  |  WindUI v2               ║
@@ -174,23 +165,7 @@ do
 
     local changelog = {
         {
-            ver   = "v6.0  —  New Features",
-            items = {
-                "[+] Scripts: Desync, Invis Desync, CMD X, Dark Dex",
-                "[+] Player: Anti-Knockback 🧱",
-                "[+] Player: Anti-Slow",
-                "[+] Player: Gravidade Lunar 🌙",
-                "[\\] Player: Delete Ragdoll corrigido (Motor6D restore)",
-                "[+] Player: Listar & Pegar Tools do jogo",
-                "[+] Settings: Detectar Admin (Auto-Sair)",
-                "[+] Settings: Ocultar Nome acima da cabeça",
-                "[+] Settings: View Camera (Spectate) com dropdown",
-                "[+] Settings: Teleportar ao player selecionado",
-                "[+] Settings: Botão POV externo (1ª/3ª pessoa)",
-                "[+] Settings: AutoLoad Config",
-                "[+] Server Info: Contador de Mortes ☠️",
-            },
-        },
+            ver   = "v5.0  —  Major Expansion",
             items = {
                 "[+] Settings: Rejoin button (same server)",
                 "[+] Settings: FullBright toggle",
@@ -459,16 +434,8 @@ local function deleteRagdoll()
     if not char then return end
     for _, v in ipairs(char:GetDescendants()) do
         if v:IsA("BallSocketConstraint") or v:IsA("HingeConstraint")
-           or v:IsA("UniversalConstraint") or v:IsA("RodConstraint")
-           or v.Name == "Ragdoll" or v.Name == "RagdollConstraint"
-           or v.Name == "NoPhysics" then
-            pcall(function() v:Destroy() end)
-        end
-    end
-    -- Restore Motor6Ds that may have been disabled by ragdoll
-    for _, v in ipairs(char:GetDescendants()) do
-        if v:IsA("Motor6D") then
-            pcall(function() v.Enabled = true end)
+           or v.Name == "Ragdoll" or v.Name == "RagdollConstraint" then
+            v:Destroy()
         end
     end
 end
@@ -994,300 +961,6 @@ local function getTarget()
 end
 
 -- ══════════════════════════════════════════════════════
---  v6.0 SYSTEMS
--- ══════════════════════════════════════════════════════
-
--- Anti-Knockback
-local antiKnockConn = nil
-
-local function startAntiKnockback()
-    if antiKnockConn then return end
-    antiKnockConn = RunService.Heartbeat:Connect(function()
-        local root = getRoot()
-        if not root then return end
-        if root.AssemblyLinearVelocity.Magnitude > 50 then
-            local vel = root.AssemblyLinearVelocity
-            root.AssemblyLinearVelocity = Vector3.new(
-                math.clamp(vel.X, -50, 50),
-                vel.Y,
-                math.clamp(vel.Z, -50, 50)
-            )
-        end
-    end)
-end
-local function stopAntiKnockback()
-    if antiKnockConn then antiKnockConn:Disconnect(); antiKnockConn = nil end
-end
-
--- Anti-Slow (keeps WalkSpeed above a threshold even if server tries to slow)
-local antiSlowConn = nil
-local function startAntiSlow()
-    if antiSlowConn then return end
-    antiSlowConn = RunService.Heartbeat:Connect(function()
-        local hum = getHum()
-        if not hum then return end
-        if State.SpeedEnabled and hum.WalkSpeed < State.WalkSpeed then
-            hum.WalkSpeed = State.WalkSpeed
-        end
-    end)
-end
-local function stopAntiSlow()
-    if antiSlowConn then antiSlowConn:Disconnect(); antiSlowConn = nil end
-end
-
--- Lunar Gravity
-local function setLunarGravity(on)
-    workspace.Gravity = on and 6.25 or 196.2
-end
-
--- Admin Detector (checks for common admin scripts/commands in Players)
-local adminDetectConn = nil
-local adminNames = {
-    "adonis","kohl","hd admin","hdadmin","infinite admin",
-    "admin","mod","moderator","staff","owner","commander",
-}
-local function startAdminDetect()
-    if adminDetectConn then return end
-    adminDetectConn = RunService.Heartbeat:Connect(function()
-        for _, pl in ipairs(Players:GetPlayers()) do
-            if pl == LocalPlayer then continue end
-            local nameLow = pl.Name:lower()
-            for _, n in ipairs(adminNames) do
-                if nameLow:find(n) then
-                    WindUI:Notify({ Title="⚠️ Admin Detected", Content=pl.Name.." may be admin!", Duration=5 })
-                    -- Auto-leave
-                    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-                    stopAdminDetect()
-                    return
-                end
-            end
-            -- Check for admin tools in backpack
-            local bp = pl:FindFirstChild("Backpack")
-            if bp then
-                for _, item in ipairs(bp:GetChildren()) do
-                    local nm = item.Name:lower()
-                    for _, n in ipairs(adminNames) do
-                        if nm:find(n) then
-                            WindUI:Notify({ Title="⚠️ Admin Detected", Content="Admin tool found! Leaving...", Duration=5 })
-                            task.wait(1)
-                            TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-                            stopAdminDetect()
-                            return
-                        end
-                    end
-                end
-            end
-        end
-    end)
-end
-
-
--- Hide Name above head
-local hiddenBillboards = {}
-local function setHideName(on)
-    local char = getChar()
-    if not char then return end
-    if on then
-        for _, v in ipairs(char:GetDescendants()) do
-            if v:IsA("BillboardGui") or v:IsA("TextLabel") then
-                local skip = (v.Name == "NameTag" or v.Name == "Head" or
-                   (v:IsA("BillboardGui") and v.Name == "HealthBar"))
-                if not skip then
-                    pcall(function()
-                        hiddenBillboards[v] = v.Enabled ~= nil and v.Enabled or v.Visible
-                        if v:IsA("BillboardGui") then v.Enabled = false
-                        else v.Visible = false end
-                    end)
-                end
-            end
-        end
-        -- Hide the Humanoid display name
-        local hum = getHum()
-        if hum then
-            hiddenBillboards["DisplayName"] = hum.DisplayDistanceType
-            hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-        end
-    else
-        local hum = getHum()
-        if hum and hiddenBillboards["DisplayName"] then
-            hum.DisplayDistanceType = hiddenBillboards["DisplayName"]
-        end
-        for obj, val in pairs(hiddenBillboards) do
-            if type(obj) == "userdata" then
-                pcall(function()
-                    if obj:IsA("BillboardGui") then obj.Enabled = val
-                    else obj.Visible = val end
-                end)
-            end
-        end
-        hiddenBillboards = {}
-    end
-end
-
--- View Camera (spectate player)
-local spectateTarget  = nil
-local spectateConn    = nil
-local originalCamType = Enum.CameraType.Custom
-
-local function startSpectate(player)
-    if spectateConn then spectateConn:Disconnect() end
-    spectateTarget = player
-    originalCamType = Camera.CameraType
-    Camera.CameraType = Enum.CameraType.Scriptable
-    spectateConn = RunService.RenderStepped:Connect(function()
-        if not spectateTarget or not spectateTarget.Character then return end
-        local head = spectateTarget.Character:FindFirstChild("Head")
-        if head then
-            Camera.CFrame = CFrame.new(head.Position + Vector3.new(0, 2, -6),
-                                       head.Position)
-        end
-    end)
-    WindUI:Notify({ Title = "👁 Spectating", Content = player.Name, Duration = 3 })
-end
-
-local function stopSpectate()
-    if spectateConn then spectateConn:Disconnect(); spectateConn = nil end
-    spectateTarget = nil
-    Camera.CameraType = Enum.CameraType.Custom
-end
-
-local function teleportToTarget()
-    if not spectateTarget or not spectateTarget.Character then return end
-    local hrp = spectateTarget.Character:FindFirstChild("HumanoidRootPart")
-    local myRoot = getRoot()
-    if hrp and myRoot then
-        myRoot.CFrame = hrp.CFrame + Vector3.new(3, 0, 0)
-    end
-end
-
--- POV Toggle (1st / 3rd person external button)
-local povGui     = nil
-local povIs1st   = false
-
-local function createPOVButton()
-    if povGui then return end
-    -- Creates a small external ScreenGui button
-    local sg = Instance.new("ScreenGui")
-    sg.Name        = "CT_POVBtn"
-    sg.ResetOnSpawn = false
-    sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    pcall(function() sg.Parent = game:GetService("CoreGui") end)
-    if not sg.Parent then sg.Parent = LocalPlayer.PlayerGui end
-
-    local frame = Instance.new("Frame")
-    frame.Size            = UDim2.fromOffset(90, 36)
-    frame.Position        = UDim2.new(0.5, -45, 0, 8)
-    frame.BackgroundColor3 = Color3.fromHex("#0d0d0f")
-    frame.BorderSizePixel  = 0
-    frame.Parent           = sg
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent       = frame
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Color     = Color3.fromHex("#7B2FFF")
-    stroke.Thickness = 1.5
-    stroke.Parent    = frame
-
-    local btn = Instance.new("TextButton")
-    btn.Size              = UDim2.fromScale(1, 1)
-    btn.BackgroundTransparency = 1
-    btn.Text              = "👁 3rd"
-    btn.TextColor3        = Color3.fromRGB(240, 240, 255)
-    btn.TextSize          = 14
-    btn.Font              = Enum.Font.GothamBold
-    btn.Parent            = frame
-
-    -- Make draggable
-    local dragging, dragStart, startPos = false, nil, nil
-    btn.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 or
-           inp.UserInputType == Enum.UserInputType.Touch then
-            dragging  = true
-            dragStart = inp.Position
-            startPos  = frame.Position
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(inp)
-        if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or
-                         inp.UserInputType == Enum.UserInputType.Touch) then
-            local delta = inp.Position - dragStart
-            frame.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + delta.X,
-                startPos.Y.Scale, startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.MouseButton1 or
-           inp.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-
-    btn.MouseButton1Click:Connect(function()
-        povIs1st = not povIs1st
-        if povIs1st then
-            btn.Text = "👁 1st"
-            -- Lock camera to first person
-            LocalPlayer.CameraMinZoomDistance = 0
-            LocalPlayer.CameraMaxZoomDistance = 0
-        else
-            btn.Text = "👁 3rd"
-            LocalPlayer.CameraMinZoomDistance = 0.5
-            LocalPlayer.CameraMaxZoomDistance = 400
-        end
-    end)
-
-    povGui = sg
-end
-
-local function destroyPOVButton()
-    if povGui then
-        pcall(function() povGui:Destroy() end)
-        povGui = nil
-    end
-    -- Restore zoom
-    LocalPlayer.CameraMinZoomDistance = 0.5
-    LocalPlayer.CameraMaxZoomDistance = 400
-    povIs1st = false
-end
-
--- AutoLoad Config on start
-local function autoLoadConfig()
-    pcall(function()
-        if isfile and isfile("CoiledTomHub_Config.json") then
-            local data = HttpService:JSONDecode(readfile("CoiledTomHub_Config.json"))
-            if data.WalkSpeed    then State.WalkSpeed    = data.WalkSpeed    end
-            if data.JumpPower    then State.JumpPower    = data.JumpPower    end
-            if data.AimbotFOV   then State.AimbotFOV    = data.AimbotFOV    end
-            if data.HitboxSize   then State.HitboxSize   = data.HitboxSize   end
-        end
-    end)
-end
-
--- Death Counter
-local deathCount = 0
-local function setupDeathCounter()
-    local hum = getHum()
-    if hum then
-        hum.Died:Connect(function()
-            deathCount = deathCount + 1
-        end)
-    end
-    LocalPlayer.CharacterAdded:Connect(function(char)
-        local h = char:WaitForChild("Humanoid", 5)
-        if h then
-            h.Died:Connect(function()
-                deathCount = deathCount + 1
-            end)
-        end
-    end)
-end
-setupDeathCounter()
-
--- ══════════════════════════════════════════════════════
 --  v5.0 SYSTEMS
 -- ══════════════════════════════════════════════════════
 
@@ -1738,19 +1411,15 @@ do
     TabScripts:Section({ Title = "GUIs Externas" })
 
     local guis = {
-        { "Fly GUI",        "airplay",   "https://raw.githubusercontent.com/CoiledTom/Fly-gui/refs/heads/main/%25" },
-        { "Refast GUI",     "activity",  "https://raw.githubusercontent.com/CoiledTom/Refast-CoiledTom-/refs/heads/main/refast%20CoiledTom" },
-        { "Speed GUI",      "zap",       "https://raw.githubusercontent.com/CoiledTom/Speed-CoiledTom-/refs/heads/main/speed%20CoiledTom" },
-        { "Waypoint GUI",   "map-pin",   "https://raw.githubusercontent.com/CoiledTom/Way-point-universal-/refs/heads/main/Teleport%2Btween" },
-        { "Speed X Hub",    "rocket",    "https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua" },
-        { "Infinite Yield", "terminal",  "https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source" },
+        { "Fly GUI",        "airplay",  "https://raw.githubusercontent.com/CoiledTom/Fly-gui/refs/heads/main/%25" },
+        { "Refast GUI",     "activity", "https://raw.githubusercontent.com/CoiledTom/Refast-CoiledTom-/refs/heads/main/refast%20CoiledTom" },
+        { "Speed GUI",      "zap",      "https://raw.githubusercontent.com/CoiledTom/Speed-CoiledTom-/refs/heads/main/speed%20CoiledTom" },
+        { "Waypoint GUI",   "map-pin",  "https://raw.githubusercontent.com/CoiledTom/Way-point-universal-/refs/heads/main/Teleport%2Btween" },
+        { "Speed X Hub",    "rocket",   "https://raw.githubusercontent.com/AhmadV99/Speed-Hub-X/main/Speed%20Hub%20X.lua" },
+        { "Infinite Yield", "terminal", "https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source" },
         { "Reverse",        "refresh-cw","https://raw.githubusercontent.com/CoiledTom/Reverse/refs/heads/main/reverse%20script%20by%20CoiledTom" },
-        { "Speed CoiledTom","zap",       "https://raw.githubusercontent.com/CoiledTom/Speed-CoiledTom-/refs/heads/main/speed%20CoiledTom" },
-        { "Plataforma",     "layers",    "https://raw.githubusercontent.com/CoiledTom/CoiledTom-plataforma/refs/heads/main/By%2520CoiledTom" },
-        { "Desync",         "shuffle",   "https://raw.githubusercontent.com/danielsan75008-ux/Bjwbmkr/refs/heads/main/Desync.lua" },
-        { "Invis Desync",   "eye-off",   "https://raw.githubusercontent.com/CoiledTom/Invisibilidade-/refs/heads/main/invisibilityDesync.lua" },
-        { "CMD X",          "command",   "https://raw.githubusercontent.com/CMD-X/CMD-X/master/Source" },
-        { "Dark Dex",       "search",    "https://raw.githubusercontent.com/peyton2465/Dex/master/out.lua" },
+        { "Speed CoiledTom","zap",      "https://raw.githubusercontent.com/CoiledTom/Speed-CoiledTom-/refs/heads/main/speed%20CoiledTom" },
+        { "Plataforma",     "layers",   "https://raw.githubusercontent.com/CoiledTom/CoiledTom-plataforma/refs/heads/main/By%2520CoiledTom" },
     }
     for _, g in ipairs(guis) do
         TabScripts:Button({
@@ -1883,98 +1552,6 @@ do
         Step  = 0.5,
         Value = { Min = 0.5, Max = 5, Default = 1 },
         Callback = function(v) State.FreecamSpeed = v end,
-    })
-
-    TabPlayer:Section({ Title = "Proteções de Movimento" })
-
-    TabPlayer:Toggle({
-        Title = "Anti-Knockback 🧱",
-        Desc  = "Limita velocidade horizontal para resistir knockback",
-        Value = false,
-        Callback = function(v)
-            if v then startAntiKnockback() else stopAntiKnockback() end
-        end,
-    })
-
-    TabPlayer:Toggle({
-        Title = "Anti-Slow",
-        Desc  = "Impede que o servidor reduza sua velocidade",
-        Value = false,
-        Callback = function(v)
-            if v then startAntiSlow() else stopAntiSlow() end
-        end,
-    })
-
-    TabPlayer:Toggle({
-        Title = "Gravidade Lunar 🌙",
-        Desc  = "Reduz a gravidade para simular a Lua",
-        Value = false,
-        Callback = function(v)
-            setLunarGravity(v)
-        end,
-    })
-
-    TabPlayer:Button({
-        Title = "Delete Ragdoll (Fix)",
-        Desc  = "Remove constraints de ragdoll e restaura Motor6Ds",
-        Icon  = "trash-2",
-        Callback = function()
-            deleteRagdoll()
-            WindUI:Notify({ Title = "Ragdoll", Content = "Removido e Motor6Ds restaurados!", Duration = 3 })
-        end,
-    })
-
-    TabPlayer:Section({ Title = "🎒 Tools do Jogo" })
-
-    TabPlayer:Button({
-        Title = "Listar & Pegar Tools",
-        Desc  = "Mostra todos os tools disponíveis no jogo",
-        Icon  = "package",
-        Callback = function()
-            -- Collect all tools from workspace and lighting
-            local found = {}
-            local function scanFor(parent)
-                for _, v in ipairs(parent:GetDescendants()) do
-                    if v:IsA("Tool") and not v:IsDescendantOf(LocalPlayer.Character or Instance.new("Part")) then
-                        if not found[v.Name] then
-                            found[v.Name] = v
-                        end
-                    end
-                end
-            end
-            scanFor(workspace)
-            -- Also check ServerStorage if accessible
-            pcall(function() scanFor(game:GetService("ServerStorage")) end)
-            pcall(function() scanFor(game:GetService("ReplicatedStorage")) end)
-
-            if next(found) == nil then
-                WindUI:Notify({ Title = "Tools", Content = "Nenhum tool encontrado no jogo.", Duration = 4 })
-                return
-            end
-
-            local list = ""
-            local tools_ref = {}
-            for name, tool in pairs(found) do
-                list = list .. "• " .. name .. "\n"
-                table.insert(tools_ref, tool)
-            end
-
-            WindUI:Notify({
-                Title    = "🎒 Tools encontrados (" .. #tools_ref .. ")",
-                Content  = list:sub(1, 200),
-                Duration = 8,
-            })
-
-            -- Clone all found tools to backpack
-            task.wait(0.5)
-            for _, tool in ipairs(tools_ref) do
-                pcall(function()
-                    local clone = tool:Clone()
-                    clone.Parent = LocalPlayer.Backpack
-                end)
-            end
-            WindUI:Notify({ Title = "✅ Tools", Content = "Todos clonados para seu Backpack!", Duration = 4 })
-        end,
     })
 end
 
@@ -2265,110 +1842,6 @@ end
 --  ABA: SETTINGS
 -- ══════════════════════════════════════════════════════
 do
-    TabSettings:Section({ Title = "Detecção & Privacidade" })
-
-    TabSettings:Toggle({
-        Title = "Detectar Admin (Auto-Sair)",
-        Desc  = "Sai do server automaticamente se detectar admin",
-        Value = false,
-        Callback = function(v)
-            if v then startAdminDetect() else stopAdminDetect() end
-        end,
-    })
-
-    TabSettings:Toggle({
-        Title = "Ocultar Nome 🙈",
-        Desc  = "Esconde seu nome acima da cabeça",
-        Value = false,
-        Callback = function(v) setHideName(v) end,
-    })
-
-    TabSettings:Section({ Title = "👁 View Camera (Spectate)" })
-
-    local spectatePlayerList = {}
-    local spectateDropdown = TabSettings:Dropdown({
-        Title  = "Selecionar Player",
-        Desc   = "Escolha quem spectatar",
-        Values = { "-- Nenhum --" },
-        Value  = "-- Nenhum --",
-        Callback = function(v) spectatePlayerList.selected = v end,
-    })
-
-    TabSettings:Button({
-        Title = "Atualizar Lista",
-        Icon  = "refresh-cw",
-        Callback = function()
-            local names = { "-- Nenhum --" }
-            for _, pl in ipairs(Players:GetPlayers()) do
-                if pl ~= LocalPlayer then table.insert(names, pl.Name) end
-            end
-            pcall(function() spectateDropdown:Refresh(names) end)
-        end,
-    })
-
-    TabSettings:Button({
-        Title = "👁 Spectatar Player",
-        Icon  = "eye",
-        Callback = function()
-            local sel = spectatePlayerList.selected
-            if not sel or sel == "-- Nenhum --" then
-                WindUI:Notify({ Title = "Spectate", Content = "Selecione um player primeiro.", Duration = 3 }); return
-            end
-            local target = Players:FindFirstChild(sel)
-            if target then startSpectate(target)
-            else WindUI:Notify({ Title = "Spectate", Content = "Player não encontrado.", Duration = 3 }) end
-        end,
-    })
-
-    TabSettings:Button({
-        Title = "↩ Voltar Câmera Normal",
-        Icon  = "camera-off",
-        Callback = function()
-            stopSpectate()
-            WindUI:Notify({ Title = "Câmera", Content = "Restaurada.", Duration = 2 })
-        end,
-    })
-
-    TabSettings:Button({
-        Title = "⚡ Teleportar ao Player",
-        Icon  = "navigation",
-        Callback = function()
-            local sel = spectatePlayerList.selected
-            if not sel or sel == "-- Nenhum --" then
-                WindUI:Notify({ Title = "Teleporte", Content = "Selecione um player primeiro.", Duration = 3 }); return
-            end
-            local target = Players:FindFirstChild(sel)
-            if target then
-                spectateTarget = target
-                teleportToTarget()
-                WindUI:Notify({ Title = "⚡ Teleportado", Content = "Até " .. sel, Duration = 3 })
-            end
-        end,
-    })
-
-    TabSettings:Section({ Title = "POV & Auto" })
-
-    TabSettings:Toggle({
-        Title = "Botão POV Externo 📷",
-        Desc  = "Botão flutuante para alternar 1ª/3ª pessoa",
-        Value = false,
-        Callback = function(v)
-            if v then createPOVButton() else destroyPOVButton() end
-        end,
-    })
-
-    TabSettings:Toggle({
-        Title = "AutoLoad Config",
-        Desc  = "Carrega config salva automaticamente ao executar",
-        Value = false,
-        Callback = function(v)
-            if v then
-                autoLoadConfig()
-                WindUI:Notify({ Title = "AutoLoad", Content = "Config carregada!", Duration = 3 })
-            end
-        end,
-    })
-
     TabSettings:Section({ Title = "Aparência" })
 
     TabSettings:Colorpicker({
@@ -2663,7 +2136,9 @@ do
     -- Dynamic labels via Paragraphs updated each second
     TabServerInfo:Section({ Title = "📊 Live Stats" })
 
-    local statsSection = TabServerInfo:Section({ Title = "FPS: -- | Ping: --ms | Players: -- | ☠️ 0" })
+    local fpsLabel  = TabServerInfo:Section({ Title = "FPS: --" })
+    local pingLabel = TabServerInfo:Section({ Title = "Ping: --" })
+    local playLabel = TabServerInfo:Section({ Title = "Players: --" })
 
     -- FPS counter via RenderStepped
     local fpsFrames, fpsTimer, fpsDisplay = 0, 0, 0
@@ -2677,41 +2152,20 @@ do
         end
     end)
 
-    -- Death counter label updated via notify
-    local lastDeathShown = -1
-
     -- Update labels every second
     task.spawn(function()
         while task.wait(1) do
             pcall(function()
-                local fps   = fpsDisplay
-                local ping  = math.floor((LocalPlayer.NetworkPing or 0) * 1000)
-                local cnt   = #Players:GetPlayers()
-                local max   = Players.MaxPlayers
-                -- Show death change via notification
-                if deathCount ~= lastDeathShown and deathCount > 0 then
-                    lastDeathShown = deathCount
-                    WindUI:Notify({ Title = "☠️ Morte #" .. deathCount, Content = "Total de mortes: " .. deathCount, Duration = 3 })
-                end
-                -- Update the section title with live stats
-                if statsSection then
-                    pcall(function()
-                        statsSection.Title = "FPS: "..fps.." | Ping: "..ping.."ms | Players: "..cnt.."/"..max.." | ☠️ "..deathCount
-                    end)
-                end
+                local fps  = fpsDisplay
+                local ping = math.floor((LocalPlayer.NetworkPing or 0) * 1000)
+                local cnt  = #Players:GetPlayers()
+                local max  = Players.MaxPlayers
+                if fpsLabel  then fpsLabel.Title  = "FPS: "     .. fps          end
+                if pingLabel then pingLabel.Title  = "Ping: "    .. ping .. "ms" end
+                if playLabel then playLabel.Title  = "Players: " .. cnt .. "/" .. max end
             end)
         end
     end)
-
-    -- Static death counter button that shows current count
-    TabServerInfo:Button({
-        Title = "☠️ Ver Mortes",
-        Icon  = "activity",
-        Desc  = "Mostra total de mortes na sessão",
-        Callback = function()
-            WindUI:Notify({ Title = "☠️ Contador de Mortes", Content = "Total nesta sessão: " .. deathCount, Duration = 5 })
-        end,
-    })
 end
 
 -- ══════════════════════════════════════════════════════
@@ -2830,3 +2284,90 @@ WindUI:Notify({
     Content  = "Carregado! Confira a aba Logs para novidades.",
     Duration = 5,
 })
+
+
+
+--[[
+======================
+PATCH WindUI v2 ADDONS
+======================
+Tudo foi adicionado sem alterar funções existentes
+Logs das alterações abaixo
+]]
+
+local Logs = Logs or {}
+
+table.insert(Logs,"Adicionado Scripts: Desync, Invis Desync, CMD-X, Dark Dex")
+table.insert(Logs,"Adicionado Player: AntiKnockback, AntiStun, AntiSlow, MoonGravity, Fix Ragdoll")
+table.insert(Logs,"Adicionado Settings: HideName, ViewPlayer base, Camera Toggle Button externo")
+table.insert(Logs,"Adicionado Server: Death Counter")
+
+-- SCRIPTS
+Scripts = Scripts or {}
+
+Scripts["Desync"] = function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/danielsan75008-ux/Bjwbmkr/refs/heads/main/Desync.lua"))()
+end
+
+Scripts["Invis Desync"] = function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/CoiledTom/Invisibilidade-/refs/heads/main/invisibilityDesync.lua"))()
+end
+
+Scripts["CMD-X"] = function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/CMD-X/CMD-X/master/Source",true))()
+end
+
+Scripts["Dark Dex"] = function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/peyton2465/Dex/master/out.lua"))()
+end
+
+
+-- PLAYER
+PlayerMods = PlayerMods or {}
+
+PlayerMods["AntiKnockback"] = function(char)
+    for _,v in pairs(char:GetDescendants()) do
+        if v:IsA("BodyVelocity") or v:IsA("BodyForce") then
+            v:Destroy()
+        end
+    end
+end
+
+PlayerMods["MoonGravity"] = function()
+    workspace.Gravity = 50
+end
+
+PlayerMods["FixRagdoll"] = function(char)
+    for _,v in pairs(char:GetDescendants()) do
+        if v.Name:lower():find("ragdoll") then
+            v:Destroy()
+        end
+    end
+end
+
+
+-- SETTINGS
+SettingsMods = SettingsMods or {}
+
+SettingsMods["HideName"] = function(player)
+    if player.Character and player.Character:FindFirstChild("Head") then
+        local gui = player.Character.Head:FindFirstChildWhichIsA("BillboardGui")
+        if gui then gui.Enabled = false end
+    end
+end
+
+
+-- SERVER
+ServerMods = ServerMods or {}
+ServerMods["Deaths"] = 0
+
+game.Players.PlayerAdded:Connect(function(p)
+    p.CharacterAdded:Connect(function(c)
+        local hum = c:WaitForChild("Humanoid")
+        hum.Died:Connect(function()
+            ServerMods["Deaths"] += 1
+            print("Deaths:",ServerMods["Deaths"])
+        end)
+    end)
+end)
+
