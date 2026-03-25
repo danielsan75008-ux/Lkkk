@@ -1034,46 +1034,6 @@ end
 -- Admin Detector (checks for common admin scripts/commands in Players)
 local adminDetectConn = nil
 local adminNames = {
-    "adonis","kohl","hd admin","hdadmin","infinite admin",
-    "admin","mod","moderator","staff","owner","commander",
-}
-local function startAdminDetect()
-    if adminDetectConn then return end
-    adminDetectConn = RunService.Heartbeat:Connect(function()
-        for _, pl in ipairs(Players:GetPlayers()) do
-            if pl == LocalPlayer then continue end
-            local nameLow = pl.Name:lower()
-            for _, n in ipairs(adminNames) do
-                if nameLow:find(n) then
-                    WindUI:Notify({ Title="⚠️ Admin Detected", Content=pl.Name.." may be admin!", Duration=5 })
-                    -- Auto-leave
-                    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-                    stopAdminDetect()
-                    return
-                end
-            end
-            -- Check for admin tools in backpack
-            local bp = pl:FindFirstChild("Backpack")
-            if bp then
-                for _, item in ipairs(bp:GetChildren()) do
-                    local nm = item.Name:lower()
-                    for _, n in ipairs(adminNames) do
-                        if nm:find(n) then
-                            WindUI:Notify({ Title="⚠️ Admin Detected", Content="Admin tool found! Leaving...", Duration=5 })
-                            task.wait(1)
-                            TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-                            stopAdminDetect()
-                            return
-                        end
-                    end
-                end
-            end
-        end
-    end)
-end
-stopAdminDetect = function()
-    if adminDetectConn then adminDetectConn:Disconnect(); adminDetectConn = nil end
-end
 
 -- Hide Name above head
 local hiddenBillboards = {}
