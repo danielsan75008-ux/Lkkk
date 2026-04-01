@@ -1518,21 +1518,63 @@ local function findEmptyServer()
 end
 
 -- Screen Stretch
--- O stretch é aplicado DENTRO do render loop principal (após o aimbot),
--- usando apenas o FOV vertical para evitar corromper a matriz de rotação.
-local _stretchOrigFOV = nil
+-- Usa ViewportFrame para capturar a cena e exibir esticada,
+-- sem tocar no Camera.CFrame ou FieldOfView — aimbot/FOV intactos.
+local _stretchGui        = nil
+local _stretchViewport   = nil
+local _stretchConn2      = nil
+
 local function startScreenStretch()
-    if not _stretchOrigFOV then
-        _stretchOrigFOV = Camera.FieldOfView
+    if _stretchGui then return end
+
+    -- ScreenGui de sobreposição
+    _stretchGui = Instance.new("ScreenGui")
+    _stretchGui.Name            = "_HubStretchGui"
+    _stretchGui.ResetOnSpawn    = false
+    _stretchGui.DisplayOrder    = 99
+    _stretchGui.IgnoreGuiInset  = true
+    pcall(function()
+        if syn and syn.protect_gui then syn.protect_gui(_stretchGui) end
+        _stretchGui.Parent = game:GetService("CoreGui")
+    end)
+    if not _stretchGui.Parent then
+        pcall(function() _stretchGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end)
     end
-    -- Aumenta o FOV vertical para simular stretch sem tocar no CFrame
-    Camera.FieldOfView = _stretchOrigFOV * (1 / 0.5)
+
+    -- ViewportFrame ocupa a tela inteira mas esticada verticalmente
+    _stretchViewport = Instance.new("ViewportFrame")
+    _stretchViewport.Size                = UDim2.new(1, 0, 1, 0)    -- ocupa 100% da tela
+    _stretchViewport.Position            = UDim2.new(0, 0, 0, 0)
+    _stretchViewport.BackgroundTransparency = 1
+    _stretchViewport.LightColor          = Color3.fromRGB(255,255,255)
+    _stretchViewport.Ambient             = Color3.fromRGB(255,255,255)
+    _stretchViewport.CurrentCamera       = Camera   -- mesma câmera do jogo
+    _stretchViewport.Parent              = _stretchGui
+
+    -- Escala vertical para simular stretch (reduz altura a 50% → imagem esticada 2×)
+    local scale = Instance.new("UIScale")
+    scale.Scale  = 1
+    scale.Parent = _stretchViewport
+
+    -- Ajuste: encolhe o UIScale no eixo Y usando UIAspectRatioConstraint
+    -- Abordagem mais estável: redimensiona o Frame para altura de 50% centralizado
+    _stretchViewport.Size     = UDim2.new(1, 0, 0.5, 0)     -- metade da altura
+    _stretchViewport.Position = UDim2.new(0, 0, 0.25, 0)    -- centralizado verticalmente
+    _stretchViewport.ClipsDescendants = false
+
+    -- Sincroniza a câmera do viewport com a câmera do jogo a cada frame
+    _stretchConn2 = RunService.RenderStepped:Connect(function()
+        if not State.ScreenStretch or not _stretchViewport or not _stretchViewport.Parent then
+            stopScreenStretch(); return
+        end
+        _stretchViewport.CurrentCamera = Camera
+    end)
 end
+
 local function stopScreenStretch()
-    if _stretchOrigFOV then
-        Camera.FieldOfView = _stretchOrigFOV
-        _stretchOrigFOV = nil
-    end
+    if _stretchConn2 then _stretchConn2:Disconnect(); _stretchConn2 = nil end
+    if _stretchGui   then _stretchGui:Destroy();      _stretchGui   = nil end
+    _stretchViewport = nil
 end
 
 -- ══════════════════════════════════════════════════════
@@ -1613,22 +1655,11 @@ do
 
     TabUseful:Toggle({
         Title = "Screen Stretch",
-        Desc  = "Estica a tela verticalmente (efeito visual local)",
+        Desc  = "Estica a tela verticalmente (visual local, sem bug no aimbot)",
         Value = false,
         Callback = function(v)
             State.ScreenStretch = v
-            if v then
-                -- Salva o FOV atual (pode ter sido mudado pelo slider CustomFOV)
-                _stretchOrigFOV = Camera.FieldOfView
-                startScreenStretch()
-            else
-                -- Restaura exatamente o FOV que estava antes do stretch
-                stopScreenStretch()
-                -- Se o slider de CustomFOV estava ativo, re-aplica ele
-                if State.CustomFOV and State.CustomFOV ~= 70 then
-                    Camera.FieldOfView = State.CustomFOV
-                end
-            end
+            if v then startScreenStretch() else stopScreenStretch() end
         end,
     })
 
