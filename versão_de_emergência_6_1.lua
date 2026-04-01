@@ -1518,29 +1518,21 @@ local function findEmptyServer()
 end
 
 -- Screen Stretch
-local _stretchConn = nil
-local _stretchActive = false
+-- O stretch é aplicado DENTRO do render loop principal (após o aimbot),
+-- usando apenas o FOV vertical para evitar corromper a matriz de rotação.
+local _stretchOrigFOV = nil
 local function startScreenStretch()
-    if _stretchActive then return end
-    _stretchActive = true
-    getgenv()._hub_stretch = true
-    getgenv()._hub_stretchVal = 0.5
-    _stretchConn = RunService.RenderStepped:Connect(function()
-        if not State.ScreenStretch then stopScreenStretch(); return end
-        if _hub_stretch ~= nil then -- guard
-            Camera.CFrame = Camera.CFrame * CFrame.new(
-                0, 0, 0,
-                1, 0, 0,
-                0, getgenv()._hub_stretchVal, 0,
-                0, 0, 1
-            )
-        end
-    end)
+    if not _stretchOrigFOV then
+        _stretchOrigFOV = Camera.FieldOfView
+    end
+    -- Aumenta o FOV vertical para simular stretch sem tocar no CFrame
+    Camera.FieldOfView = _stretchOrigFOV * (1 / 0.5)
 end
 local function stopScreenStretch()
-    _stretchActive = false
-    getgenv()._hub_stretch = nil
-    if _stretchConn then _stretchConn:Disconnect(); _stretchConn = nil end
+    if _stretchOrigFOV then
+        Camera.FieldOfView = _stretchOrigFOV
+        _stretchOrigFOV = nil
+    end
 end
 
 -- ══════════════════════════════════════════════════════
@@ -1625,7 +1617,18 @@ do
         Value = false,
         Callback = function(v)
             State.ScreenStretch = v
-            if v then startScreenStretch() else stopScreenStretch() end
+            if v then
+                -- Salva o FOV atual (pode ter sido mudado pelo slider CustomFOV)
+                _stretchOrigFOV = Camera.FieldOfView
+                startScreenStretch()
+            else
+                -- Restaura exatamente o FOV que estava antes do stretch
+                stopScreenStretch()
+                -- Se o slider de CustomFOV estava ativo, re-aplica ele
+                if State.CustomFOV and State.CustomFOV ~= 70 then
+                    Camera.FieldOfView = State.CustomFOV
+                end
+            end
         end,
     })
 
