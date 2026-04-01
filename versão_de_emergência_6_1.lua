@@ -1418,28 +1418,82 @@ local function stopSpin()
 end
 
 -- Spin Players (Visual Only)
-local spinPlayersConn = nil
-local spinOffsets = {}
+-- Spin Players (Visual Only) — gira um anel decorativo ACIMA do player
+-- NÃO toca no HumanoidRootPart, então não trava nem interfere no servidor
+local spinPlayersConn  = nil
+local spinPlayersParts = {}  -- { [player] = { ring, weld } }
+local spinAngle        = 0
+
+local function buildSpinRing(pl)
+    local char = pl.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    -- Anel fino e transparente girando acima da cabeça
+    local ring = Instance.new("Part")
+    ring.Name         = "_SpinRing_" .. pl.Name
+    ring.Size         = Vector3.new(4, 0.15, 4)
+    ring.Shape        = Enum.PartType.Cylinder
+    ring.Material     = Enum.Material.Neon
+    ring.BrickColor   = BrickColor.new("Cyan")
+    ring.CanCollide   = false
+    ring.Massless     = true
+    ring.Anchored     = false
+    ring.CastShadow   = false
+    ring.Parent       = workspace
+
+    -- Weld ao root para seguir o player automaticamente sem travar física
+    local weld = Instance.new("Weld")
+    weld.Part0  = root
+    weld.Part1  = ring
+    weld.C0     = CFrame.new(0, 3.5, 0)  -- flutua acima da cabeça
+    weld.Parent = ring
+
+    spinPlayersParts[pl] = { ring = ring, weld = weld, angle = 0 }
+end
+
+local function removeSpinRing(pl)
+    local data = spinPlayersParts[pl]
+    if data then
+        pcall(function() data.ring:Destroy() end)
+        spinPlayersParts[pl] = nil
+    end
+end
+
 local function startSpinPlayers()
     if spinPlayersConn then return end
-    spinPlayersConn = RunService.Heartbeat:Connect(function()
+
+    -- Cria anel para players já na partida
+    for _, pl in ipairs(Players:GetPlayers()) do
+        if pl ~= LocalPlayer then buildSpinRing(pl) end
+    end
+
+    spinPlayersConn = RunService.Heartbeat:Connect(function(dt)
         if not State.SpinPlayers then stopSpinPlayers(); return end
         for _, pl in ipairs(Players:GetPlayers()) do
             if pl == LocalPlayer then continue end
-            local char = pl.Character
-            if not char then continue end
-            local root = char:FindFirstChild("HumanoidRootPart")
-            if not root then continue end
-            spinOffsets[pl] = (spinOffsets[pl] or 0) + math.rad(255) * (1/60)
-            pcall(function()
-                root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, spinOffsets[pl], 0)
-            end)
+            local data = spinPlayersParts[pl]
+            -- Recria anel se o player respawnou
+            if not data or not data.ring or not data.ring.Parent then
+                removeSpinRing(pl)
+                buildSpinRing(pl)
+                data = spinPlayersParts[pl]
+            end
+            if not data then continue end
+            -- Gira apenas o weld C0 — não toca no root nem na física
+            data.angle = (data.angle or 0) + math.rad(255) * dt
+            data.weld.C0 = CFrame.new(0, 3.5, 0) * CFrame.Angles(0, data.angle, 0)
         end
     end)
 end
+
 local function stopSpinPlayers()
     if spinPlayersConn then spinPlayersConn:Disconnect(); spinPlayersConn = nil end
-    spinOffsets = {}
+    for pl, _ in pairs(spinPlayersParts) do
+        removeSpinRing(pl)
+    end
+    spinPlayersParts = {}
 end
 
 -- NoFall Damage
@@ -1917,7 +1971,7 @@ do
 
     TabPlayer:Toggle({
         Title = "Spin Players (Visual) 🌀",
-        Desc  = "Faz outros players girarem — apenas visual local",
+        Desc  = "Coloca um anel girando acima dos players — visual local, não trava nem interfere",
         Value = false,
         Callback = function(v)
             State.SpinPlayers = v
